@@ -1,0 +1,427 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Snake 3310</title>
+
+<style>
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #202820;
+  color: #d8e6a0;
+  font-family: monospace;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 15px;
+  touch-action: manipulation;
+}
+
+.game {
+  width: min(100%, 390px);
+  background: #303d30;
+  border: 4px solid #667653;
+  border-radius: 22px;
+  padding: 20px;
+  box-shadow: 0 10px 30px #0008;
+}
+
+h1 {
+  text-align: center;
+  font-size: 26px;
+  margin-bottom: 15px;
+  letter-spacing: 3px;
+}
+
+.screen {
+  background: #a9b98a;
+  border: 7px solid #19251b;
+  border-radius: 8px;
+  padding: 8px;
+  color: #172518;
+}
+
+.info {
+  display: flex;
+  justify-content: space-between;
+  font-weight: bold;
+  font-size: 13px;
+  margin-bottom: 7px;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  touch-action: none;
+}
+
+.status {
+  text-align: center;
+  font-weight: bold;
+  padding: 9px 0 2px;
+  font-size: 13px;
+  min-height: 30px;
+}
+
+button {
+  border: 2px solid #84966a;
+  border-radius: 9px;
+  background: #46563d;
+  color: #eff5cb;
+  font-family: monospace;
+  font-weight: bold;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button:active {
+  background: #81945e;
+  transform: scale(.96);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 17px;
+}
+
+.actions button {
+  flex: 1;
+  padding: 12px 5px;
+  font-size: 13px;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(3, 65px);
+  grid-template-rows: repeat(2, 55px);
+  gap: 7px;
+  justify-content: center;
+  margin: 22px auto 5px;
+}
+
+.controls button {
+  font-size: 24px;
+}
+
+.up { grid-column: 2; grid-row: 1; }
+.left { grid-column: 1; grid-row: 2; }
+.down { grid-column: 2; grid-row: 2; }
+.right { grid-column: 3; grid-row: 2; }
+
+footer {
+  text-align: center;
+  font-size: 10px;
+  margin-top: 16px;
+  opacity: .7;
+}
+</style>
+</head>
+
+<body>
+
+<div class="game">
+
+<h1>SNAKE 3310</h1>
+
+<div class="screen">
+
+  <div class="info">
+    <span>SCORE: <span id="score">0</span></span>
+    <span>BEST: <span id="best">0</span></span>
+  </div>
+
+  <canvas id="canvas" width="320" height="320"></canvas>
+
+  <div class="status" id="status">
+    PRESS START
+  </div>
+
+</div>
+
+<div class="actions">
+  <button id="start">START</button>
+  <button id="pause">PAUSE</button>
+  <button id="reset">RESET</button>
+</div>
+
+<div class="controls">
+  <button class="up" data-dir="up">▲</button>
+  <button class="left" data-dir="left">◀</button>
+  <button class="down" data-dir="down">▼</button>
+  <button class="right" data-dir="right">▶</button>
+</div>
+
+<footer>
+  CLASSIC MOBILE GAME · 2026
+</footer>
+
+</div>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const size = 16;
+const cells = 20;
+
+let snake;
+let food;
+let direction;
+let nextDirection;
+let score = 0;
+let speed = 150;
+let timer = null;
+let running = false;
+let gameOver = false;
+
+let best = Number(localStorage.getItem("snakeBest")) || 0;
+
+document.getElementById("best").textContent = best;
+
+function newGame() {
+  clearInterval(timer);
+
+  snake = [
+    {x: 7, y: 10},
+    {x: 6, y: 10},
+    {x: 5, y: 10}
+  ];
+
+  direction = "right";
+  nextDirection = "right";
+  score = 0;
+  speed = 150;
+  running = false;
+  gameOver = false;
+
+  document.getElementById("score").textContent = score;
+  document.getElementById("status").textContent = "PRESS START";
+
+  createFood();
+  draw();
+}
+
+function createFood() {
+  do {
+    food = {
+      x: Math.floor(Math.random() * cells),
+      y: Math.floor(Math.random() * cells)
+    };
+  } while (snake.some(p => p.x === food.x && p.y === food.y));
+}
+
+function draw() {
+  ctx.fillStyle = "#a9b98a";
+  ctx.fillRect(0, 0, 320, 320);
+
+  // Grade discreta
+  ctx.strokeStyle = "rgba(35,55,30,.10)";
+  for (let i = 0; i <= cells; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * size, 0);
+    ctx.lineTo(i * size, 320);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(0, i * size);
+    ctx.lineTo(320, i * size);
+    ctx.stroke();
+  }
+
+  // Comida
+  ctx.fillStyle = "#172518";
+  ctx.fillRect(
+    food.x * size + 3,
+    food.y * size + 3,
+    size - 6,
+    size - 6
+  );
+
+  // Cobra
+  snake.forEach((part, i) => {
+    ctx.fillStyle = i === 0 ? "#172518" : "#30452c";
+    ctx.fillRect(
+      part.x * size + 1,
+      part.y * size + 1,
+      size - 2,
+      size - 2
+    );
+  });
+}
+
+function startGame() {
+  if (running) return;
+
+  if (gameOver) newGame();
+
+  running = true;
+  document.getElementById("status").textContent = "PLAYING";
+
+  timer = setInterval(update, speed);
+}
+
+function pauseGame() {
+  if (!running) return;
+
+  running = false;
+  clearInterval(timer);
+
+  document.getElementById("status").textContent = "PAUSED";
+}
+
+function changeDirection(dir) {
+  const opposites = {
+    up: "down",
+    down: "up",
+    left: "right",
+    right: "left"
+  };
+
+  if (dir !== opposites[direction]) {
+    nextDirection = dir;
+  }
+}
+
+function update() {
+  direction = nextDirection;
+
+  const head = {...snake[0]};
+
+  if (direction === "up") head.y--;
+  if (direction === "down") head.y++;
+  if (direction === "left") head.x--;
+  if (direction === "right") head.x++;
+
+  // Colisão com parede
+  if (
+    head.x < 0 || head.x >= cells ||
+    head.y < 0 || head.y >= cells
+  ) {
+    endGame();
+    return;
+  }
+
+  const eating =
+    head.x === food.x && head.y === food.y;
+
+  // Permite entrar na posição da cauda quando ela vai sair
+  const body = eating ? snake : snake.slice(0, -1);
+
+  if (body.some(p => p.x === head.x && p.y === head.y)) {
+    endGame();
+    return;
+  }
+
+  snake.unshift(head);
+
+  if (eating) {
+    score += 10;
+    document.getElementById("score").textContent = score;
+
+    if (score > best) {
+      best = score;
+      localStorage.setItem("snakeBest", best);
+      document.getElementById("best").textContent = best;
+    }
+
+    createFood();
+
+    // Aumenta a velocidade
+    speed = Math.max(65, 150 - score);
+
+    clearInterval(timer);
+    timer = setInterval(update, speed);
+  } else {
+    snake.pop();
+  }
+
+  draw();
+}
+
+function endGame() {
+  running = false;
+  gameOver = true;
+  clearInterval(timer);
+
+  document.getElementById("status").textContent =
+    "GAME OVER - SCORE: " + score;
+}
+
+document.getElementById("start").onclick = startGame;
+document.getElementById("pause").onclick = pauseGame;
+document.getElementById("reset").onclick = newGame;
+
+document.querySelectorAll("[data-dir]").forEach(button => {
+  button.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    changeDirection(button.dataset.dir);
+  });
+});
+
+// Teclado
+document.addEventListener("keydown", e => {
+  const keys = {
+    ArrowUp: "up",
+    ArrowDown: "down",
+    ArrowLeft: "left",
+    ArrowRight: "right",
+    w: "up",
+    s: "down",
+    a: "left",
+    d: "right"
+  };
+
+  if (keys[e.key]) {
+    e.preventDefault();
+    changeDirection(keys[e.key]);
+  }
+
+  if (e.code === "Space") {
+    e.preventDefault();
+    running ? pauseGame() : startGame();
+  }
+});
+
+// Controle por gestos na tela
+let touchX = 0;
+let touchY = 0;
+
+canvas.addEventListener("touchstart", e => {
+  const touch = e.changedTouches[0];
+  touchX = touch.clientX;
+  touchY = touch.clientY;
+}, {passive: true});
+
+canvas.addEventListener("touchend", e => {
+  const touch = e.changedTouches[0];
+
+  const dx = touch.clientX - touchX;
+  const dy = touch.clientY - touchY;
+
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 20) return;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    changeDirection(dx > 0 ? "right" : "left");
+  } else {
+    changeDirection(dy > 0 ? "down" : "up");
+  }
+}, {passive: true});
+
+newGame();
+</script>
+
+</body>
+</html>
